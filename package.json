@@ -15,6 +15,7 @@
     "build:backend": "npm --prefix backend run build",
     "build:frontend": "npm --prefix frontend run build",
     "build": "npm run build:backend && npm run build:frontend",
+    "postinstall": "npm --prefix backend run prisma:generate",
     "start": "node backend/dist/server.js",
     "test:backend": "npm --prefix backend test",
     "db:migrate": "npm --prefix backend run db:migrate",
