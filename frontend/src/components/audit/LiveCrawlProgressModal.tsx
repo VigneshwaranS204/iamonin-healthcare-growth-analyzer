@@ -42,7 +42,8 @@ export const LiveCrawlProgressModal: React.FC<LiveCrawlProgressModalProps> = ({
   useEffect(() => {
     if (!isOpen || !auditId) return;
 
-    const eventSource = new EventSource(`/api/audits/${auditId}/progress`);
+    const sseBase = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api` : '/api';
+    const eventSource = new EventSource(`${sseBase}/audits/${auditId}/progress`);
 
     eventSource.onmessage = (e) => {
       try {
