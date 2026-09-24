@@ -34,7 +34,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api', apiRouter);
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get(['/health', '/api/health'], (req, res) => {
   res.json({
     status: 'healthy',
     service: 'IAMONIN Healthcare Growth Analyzer',
@@ -57,6 +57,14 @@ if (frontendDistPath) {
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path === '/health') return next();
     res.sendFile(path.join(frontendDistPath, 'index.html'));
+  });
+} else {
+  app.get('/', (req, res) => {
+    res.json({
+      status: 'healthy',
+      service: 'IAMONIN Healthcare Growth Analyzer',
+      message: 'Backend is running. API endpoints available at /api',
+    });
   });
 }
 
