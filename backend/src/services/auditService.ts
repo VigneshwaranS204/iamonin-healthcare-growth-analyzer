@@ -253,182 +253,186 @@ export class AuditService {
       const pdfFilePath = path.resolve(process.cwd(), 'reports', pdfFileName);
       await this.pdfService.generatePdf(fullReportData, pdfFilePath);
 
-      // 11. Database Persistence in Transaction
-      await prisma.$transaction(async (tx) => {
-        // Clear previous child records if re-analyzing
-        await tx.crawlPage.deleteMany({ where: { auditId: currentAuditId } });
-        await tx.technicalFinding.deleteMany({ where: { auditId: currentAuditId } });
-        await tx.healthcareFinding.deleteMany({ where: { auditId: currentAuditId } });
-        await tx.doctor.deleteMany({ where: { auditId: currentAuditId } });
-        await tx.opportunity.deleteMany({ where: { auditId: currentAuditId } });
-        await tx.outreach.deleteMany({ where: { auditId: currentAuditId } });
-        await tx.auditReport.deleteMany({ where: { auditId: currentAuditId } });
+      // 11. Database Persistence in Transaction with bulk batch operations
+      await prisma.$transaction(
+        async (tx) => {
+          // Clear previous child records if re-analyzing
+          await tx.crawlPage.deleteMany({ where: { auditId: currentAuditId } });
+          await tx.technicalFinding.deleteMany({ where: { auditId: currentAuditId } });
+          await tx.healthcareFinding.deleteMany({ where: { auditId: currentAuditId } });
+          await tx.doctor.deleteMany({ where: { auditId: currentAuditId } });
+          await tx.opportunity.deleteMany({ where: { auditId: currentAuditId } });
+          await tx.outreach.deleteMany({ where: { auditId: currentAuditId } });
+          await tx.auditReport.deleteMany({ where: { auditId: currentAuditId } });
 
-        // Update Audit main record
-        await tx.audit.update({
-          where: { id: currentAuditId },
-          data: {
-            status: 'COMPLETED',
-            pagesCrawled: crawlData.pages.length,
-            totalPagesDiscovered: crawlData.stats.totalDiscovered,
-            overallOpportunity: scores.overallOpportunity,
-            technicalHealthScore: scores.technicalHealth.score,
-            seoReadinessScore: scores.seoReadiness.score,
-            healthcareContentScore: scores.healthcareContent.score,
-            doctorAuthorityScore: scores.doctorAuthority.score,
-            patientJourneyScore: scores.patientJourney.score,
-            conversionReadinessScore: scores.conversionReadiness.score,
-            localPresenceScore: scores.localPresence.score,
-            contentOpportunityScore: scores.contentOpportunity.score,
-            scoresJson: JSON.stringify(scores),
-            executiveSummary: fullReportData.executiveSummary,
-            crawlStatsJson: JSON.stringify(crawlData.stats),
-          },
-        });
-
-        // Insert Crawled Pages (up to 50 sample pages)
-        for (const p of crawlData.pages.slice(0, 50)) {
-          await tx.crawlPage.create({
+          // Update Audit main record
+          await tx.audit.update({
+            where: { id: currentAuditId },
             data: {
-              auditId: currentAuditId,
-              url: p.url,
-              finalUrl: p.finalUrl,
-              statusCode: p.statusCode,
-              depth: p.depth,
-              title: p.title,
-              metaDescription: p.metaDescription,
-              h1ListJson: JSON.stringify(p.h1List),
-              h2ListJson: JSON.stringify(p.h2List),
-              wordCount: p.wordCount,
-              canonicalUrl: p.canonicalUrl,
-              ogDataJson: JSON.stringify({ title: p.ogTitle, description: p.ogDescription, image: p.ogImage }),
-              schemaTypesJson: JSON.stringify(p.schemaTypes),
-              imagesCount: p.imagesCount,
-              imagesMissingAlt: p.imagesMissingAlt,
-              internalLinksCount: p.internalLinks.length,
-              externalLinksCount: p.externalLinks.length,
-              ctasJson: JSON.stringify(p.ctas),
-              detectedSpecialtiesJson: JSON.stringify(p.detectedSpecialties),
-              isDoctorPage: p.isDoctorPage,
-              isSpecialtyPage: p.isSpecialtyPage,
-              isEmergencyPage: p.isEmergencyPage,
+              status: 'COMPLETED',
+              pagesCrawled: crawlData.pages.length,
+              totalPagesDiscovered: crawlData.stats.totalDiscovered,
+              overallOpportunity: scores.overallOpportunity,
+              technicalHealthScore: scores.technicalHealth.score,
+              seoReadinessScore: scores.seoReadiness.score,
+              healthcareContentScore: scores.healthcareContent.score,
+              doctorAuthorityScore: scores.doctorAuthority.score,
+              patientJourneyScore: scores.patientJourney.score,
+              conversionReadinessScore: scores.conversionReadiness.score,
+              localPresenceScore: scores.localPresence.score,
+              contentOpportunityScore: scores.contentOpportunity.score,
+              scoresJson: JSON.stringify(scores),
+              executiveSummary: fullReportData.executiveSummary,
+              crawlStatsJson: JSON.stringify(crawlData.stats),
             },
           });
-        }
 
-        // Insert Technical Findings
-        for (const tf of technicalFindings) {
-          await tx.technicalFinding.create({
-            data: {
-              auditId: currentAuditId,
-              checkId: tf.checkId,
-              name: tf.name,
-              category: tf.category,
-              severity: tf.severity,
-              evidence: tf.evidence,
-              affectedUrlsJson: JSON.stringify(tf.affectedUrls),
-              explanation: tf.explanation,
-              recommendation: tf.recommendation,
-            },
-          });
-        }
-
-        // Insert Healthcare Findings
-        for (const hf of hcData.findings) {
-          await tx.healthcareFinding.create({
-            data: {
-              auditId: currentAuditId,
-              category: hf.category,
-              title: hf.title,
-              status: hf.status,
-              evidence: hf.evidence,
-              detailsJson: hf.details ? JSON.stringify(hf.details) : null,
-            },
-          });
-        }
-
-        // Insert Doctors
-        for (const doc of docData.doctors) {
-          await tx.doctor.create({
-            data: {
-              auditId: currentAuditId,
-              name: doc.name,
-              specialty: doc.specialty,
-              qualifications: doc.qualifications,
-              experienceYears: doc.experienceYears,
-              profileUrl: doc.profileUrl,
-              photoUrl: doc.photoUrl,
-              hasAppointmentCta: doc.hasAppointmentCta,
-              hasDedicatedPage: doc.hasDedicatedPage,
-              contentWordCount: doc.contentWordCount,
-              hasSchema: doc.hasSchema,
-            },
-          });
-        }
-
-        // Insert Opportunities
-        for (const opp of opportunities) {
-          await tx.opportunity.create({
-            data: {
-              auditId: currentAuditId,
-              title: opp.title,
-              category: opp.category,
-              severity: opp.severity,
-              impact: opp.impact,
-              effort: opp.effort,
-              evidence: opp.evidence,
-              whyItMatters: opp.whyItMatters,
-              recommendedAction: opp.recommendedAction,
-              iamoninModule: opp.iamoninModule,
-              isTop5: opp.isTop5,
-            },
-          });
-        }
-
-        // Insert Outreaches
-        const channels: Array<{ channel: string; subject?: string; content: string }> = [
-          { channel: 'EMAIL', subject: outreachSet.email.subject, content: outreachSet.email.body },
-          { channel: 'LINKEDIN', subject: outreachSet.linkedIn.subject, content: outreachSet.linkedIn.body },
-          { channel: 'WHATSAPP', content: outreachSet.whatsApp.body },
-          {
-            channel: 'CALL_SCRIPT',
-            subject: 'Phone Script',
-            content: `${outreachSet.callScript.opening}\n\n${outreachSet.callScript.valueProposition}\n\nKey Points:\n${outreachSet.callScript.keyPoints.join('\n')}\n\nClosing:\n${outreachSet.callScript.closingQuestion}`,
-          },
-        ];
-
-        for (const ch of channels) {
-          await tx.outreach.create({
-            data: {
-              auditId: currentAuditId,
-              channel: ch.channel,
-              subject: ch.subject,
-              content: ch.content,
-              keyFindingsUsedJson: JSON.stringify(outreachSet.email.keyFindingsUsed),
-            },
-          });
-        }
-
-        // Insert AuditReport
-        await tx.auditReport.create({
-          data: {
+          // Insert Crawled Pages in Bulk (up to 50 sample pages)
+          const crawlPagesData = crawlData.pages.slice(0, 50).map((p) => ({
             auditId: currentAuditId,
-            reportDataJson: JSON.stringify(fullReportData),
-            pdfPath: pdfFilePath,
-          },
-        });
+            url: p.url,
+            finalUrl: p.finalUrl,
+            statusCode: p.statusCode,
+            depth: p.depth,
+            title: p.title,
+            metaDescription: p.metaDescription,
+            h1ListJson: JSON.stringify(p.h1List),
+            h2ListJson: JSON.stringify(p.h2List),
+            wordCount: p.wordCount,
+            canonicalUrl: p.canonicalUrl,
+            ogDataJson: JSON.stringify({ title: p.ogTitle, description: p.ogDescription, image: p.ogImage }),
+            schemaTypesJson: JSON.stringify(p.schemaTypes),
+            imagesCount: p.imagesCount,
+            imagesMissingAlt: p.imagesMissingAlt,
+            internalLinksCount: p.internalLinks.length,
+            externalLinksCount: p.externalLinks.length,
+            ctasJson: JSON.stringify(p.ctas),
+            detectedSpecialtiesJson: JSON.stringify(p.detectedSpecialties),
+            isDoctorPage: p.isDoctorPage,
+            isSpecialtyPage: p.isSpecialtyPage,
+            isEmergencyPage: p.isEmergencyPage,
+          }));
 
-        // Complete Job
-        await tx.auditJob.update({
-          where: { id: job.id },
-          data: {
-            status: 'COMPLETED',
-            currentStep: 'COMPLETED',
-            progressPercent: 100,
-            finishedAt: new Date(),
-          },
-        });
-      });
+          if (crawlPagesData.length > 0) {
+            await tx.crawlPage.createMany({ data: crawlPagesData });
+          }
+
+          // Insert Technical Findings in Bulk
+          const techFindingsData = technicalFindings.map((tf) => ({
+            auditId: currentAuditId,
+            checkId: tf.checkId,
+            name: tf.name,
+            category: tf.category,
+            severity: tf.severity,
+            evidence: tf.evidence,
+            affectedUrlsJson: JSON.stringify(tf.affectedUrls),
+            explanation: tf.explanation,
+            recommendation: tf.recommendation,
+          }));
+
+          if (techFindingsData.length > 0) {
+            await tx.technicalFinding.createMany({ data: techFindingsData });
+          }
+
+          // Insert Healthcare Findings in Bulk
+          const hcFindingsData = hcData.findings.map((hf) => ({
+            auditId: currentAuditId,
+            category: hf.category,
+            title: hf.title,
+            status: hf.status,
+            evidence: hf.evidence,
+            detailsJson: hf.details ? JSON.stringify(hf.details) : null,
+          }));
+
+          if (hcFindingsData.length > 0) {
+            await tx.healthcareFinding.createMany({ data: hcFindingsData });
+          }
+
+          // Insert Doctors in Bulk
+          const doctorsData = docData.doctors.map((doc) => ({
+            auditId: currentAuditId,
+            name: doc.name,
+            specialty: doc.specialty,
+            qualifications: doc.qualifications,
+            experienceYears: doc.experienceYears,
+            profileUrl: doc.profileUrl,
+            photoUrl: doc.photoUrl,
+            hasAppointmentCta: doc.hasAppointmentCta,
+            hasDedicatedPage: doc.hasDedicatedPage,
+            contentWordCount: doc.contentWordCount,
+            hasSchema: doc.hasSchema,
+          }));
+
+          if (doctorsData.length > 0) {
+            await tx.doctor.createMany({ data: doctorsData });
+          }
+
+          // Insert Opportunities in Bulk
+          const opportunitiesData = opportunities.map((opp) => ({
+            auditId: currentAuditId,
+            title: opp.title,
+            category: opp.category,
+            severity: opp.severity,
+            impact: opp.impact,
+            effort: opp.effort,
+            evidence: opp.evidence,
+            whyItMatters: opp.whyItMatters,
+            recommendedAction: opp.recommendedAction,
+            iamoninModule: opp.iamoninModule,
+            isTop5: opp.isTop5,
+          }));
+
+          if (opportunitiesData.length > 0) {
+            await tx.opportunity.createMany({ data: opportunitiesData });
+          }
+
+          // Insert Outreaches in Bulk
+          const channels = [
+            { channel: 'EMAIL', subject: outreachSet.email.subject, content: outreachSet.email.body },
+            { channel: 'LINKEDIN', subject: outreachSet.linkedIn.subject, content: outreachSet.linkedIn.body },
+            { channel: 'WHATSAPP', subject: null, content: outreachSet.whatsApp.body },
+            {
+              channel: 'CALL_SCRIPT',
+              subject: 'Phone Script',
+              content: `${outreachSet.callScript.opening}\n\n${outreachSet.callScript.valueProposition}\n\nKey Points:\n${outreachSet.callScript.keyPoints.join('\n')}\n\nClosing:\n${outreachSet.callScript.closingQuestion}`,
+            },
+          ];
+
+          const outreachData = channels.map((ch) => ({
+            auditId: currentAuditId,
+            channel: ch.channel,
+            subject: ch.subject,
+            content: ch.content,
+            keyFindingsUsedJson: JSON.stringify(outreachSet.email.keyFindingsUsed),
+          }));
+
+          await tx.outreach.createMany({ data: outreachData });
+
+          // Insert AuditReport
+          await tx.auditReport.create({
+            data: {
+              auditId: currentAuditId,
+              reportDataJson: JSON.stringify(fullReportData),
+              pdfPath: pdfFilePath,
+            },
+          });
+
+          // Complete Job
+          await tx.auditJob.update({
+            where: { id: job.id },
+            data: {
+              status: 'COMPLETED',
+              currentStep: 'COMPLETED',
+              progressPercent: 100,
+              finishedAt: new Date(),
+            },
+          });
+        },
+        {
+          maxWait: 15000,
+          timeout: 60000,
+        }
+      );
 
       this.emitProgress(currentAuditId, {
         step: 'COMPLETED',
