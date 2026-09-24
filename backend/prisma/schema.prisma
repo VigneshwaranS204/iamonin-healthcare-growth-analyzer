@@ -1,0 +1,278 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("SALES") // ADMIN, SALES
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([email])
+}
+
+model Hospital {
+  id            String            @id @default(cuid())
+  name          String
+  websiteUrl    String
+  location      String
+  googleMapsUrl String?
+  instagramUrl  String?
+  facebookUrl   String?
+  youtubeUrl    String?
+  linkedinUrl   String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  audits        Audit[]
+  contacts      HospitalContact[]
+
+  @@index([name])
+  @@index([websiteUrl])
+  @@index([createdAt])
+}
+
+model HospitalContact {
+  id          String   @id @default(cuid())
+  hospitalId  String
+  name        String
+  designation String?
+  email       String?
+  phone       String?
+  linkedIn    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@index([hospitalId])
+}
+
+model Audit {
+  id                     String   @id @default(cuid())
+  hospitalId             String
+  status                 String   @default("PENDING") // PENDING, CRAWLING, ANALYZING, COMPLETED, FAILED
+  pagesCrawled           Int      @default(0)
+  totalPagesDiscovered   Int      @default(0)
+  overallOpportunity     String?  // HIGH, MEDIUM, LOW
+  
+  // 8 Scores (0-100)
+  technicalHealthScore    Int      @default(0)
+  seoReadinessScore       Int      @default(0)
+  healthcareContentScore  Int      @default(0)
+  doctorAuthorityScore    Int      @default(0)
+  patientJourneyScore     Int      @default(0)
+  conversionReadinessScore Int     @default(0)
+  localPresenceScore      Int      @default(0)
+  contentOpportunityScore Int      @default(0)
+  
+  scoresJson             String?  // Detailed breakdown
+  executiveSummary       String?
+  crawlStatsJson         String?
+  errorMessage           String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  hospital           Hospital           @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  pages              CrawlPage[]
+  technicalFindings  TechnicalFinding[]
+  healthcareFindings HealthcareFinding[]
+  doctors            Doctor[]
+  opportunities      Opportunity[]
+  competitors        Competitor[]
+  outreaches         Outreach[]
+  report             AuditReport?
+  jobs               AuditJob[]
+
+  @@index([hospitalId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model CrawlPage {
+  id                     String   @id @default(cuid())
+  auditId                String
+  url                    String
+  finalUrl               String?
+  statusCode             Int      @default(200)
+  depth                  Int      @default(0)
+  title                  String?
+  metaDescription        String?
+  h1ListJson             String?
+  h2ListJson             String?
+  wordCount              Int      @default(0)
+  canonicalUrl           String?
+  ogDataJson             String?
+  schemaTypesJson        String?
+  imagesCount            Int      @default(0)
+  imagesMissingAlt       Int      @default(0)
+  internalLinksCount     Int      @default(0)
+  externalLinksCount     Int      @default(0)
+  ctasJson               String?
+  detectedSpecialtiesJson String?
+  isDoctorPage           Boolean  @default(false)
+  isSpecialtyPage        Boolean  @default(false)
+  isEmergencyPage        Boolean  @default(false)
+  createdAt              DateTime @default(now())
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([url])
+}
+
+model TechnicalFinding {
+  id              String   @id @default(cuid())
+  auditId         String
+  checkId         String
+  name            String
+  category        String   // Technical, SEO, Security, Performance
+  severity        String   // CRITICAL, HIGH, MEDIUM, LOW, INFO
+  evidence        String
+  affectedUrlsJson String?
+  explanation     String
+  recommendation  String
+  createdAt       DateTime @default(now())
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([severity])
+}
+
+model HealthcareFinding {
+  id          String   @id @default(cuid())
+  auditId     String
+  category    String   // Specialty, Department, Emergency, Package, Insurance, Testimonial
+  title       String
+  status      String   // DETECTED, PARTIAL, NOT_DETECTED, DISCOVERY_REQUIRED
+  evidence    String
+  detailsJson String?
+  createdAt   DateTime @default(now())
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([category])
+}
+
+model Doctor {
+  id                String   @id @default(cuid())
+  auditId           String
+  name              String
+  specialty         String?
+  qualifications    String?
+  experienceYears   Int?
+  profileUrl        String?
+  photoUrl          String?
+  hasAppointmentCta Boolean  @default(false)
+  hasDedicatedPage  Boolean  @default(false)
+  contentWordCount  Int      @default(0)
+  hasSchema         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+}
+
+model Opportunity {
+  id                String   @id @default(cuid())
+  auditId           String
+  title             String
+  category          String   // SEO, Website, Content, Doctor Authority, Patient Acquisition, Appointment Conversion, Healthcare Content, Local Visibility, Technical SEO, Automation Opportunity
+  severity          String   // HIGH, MEDIUM, LOW
+  impact            String   // HIGH, MEDIUM, LOW
+  effort            String   // HIGH, MEDIUM, LOW
+  evidence          String
+  whyItMatters      String
+  recommendedAction String
+  iamoninModule     String   // DIGITAL_FOUNDATION, DOCTOR_AUTHORITY, PATIENT_ACQUISITION, APPOINTMENT_CONVERSION, AI_FOLLOW_UP, GROWTH_INTELLIGENCE
+  isTop5            Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([severity])
+  @@index([iamoninModule])
+}
+
+model Competitor {
+  id                 String   @id @default(cuid())
+  auditId            String
+  name               String
+  websiteUrl         String
+  location           String?
+  scoresJson         String?
+  comparisonGapsJson String?
+  createdAt          DateTime @default(now())
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+}
+
+model Outreach {
+  id                  String   @id @default(cuid())
+  auditId             String
+  channel             String   // EMAIL, LINKEDIN, WHATSAPP, CALL_SCRIPT
+  subject             String?
+  content             String
+  keyFindingsUsedJson String?
+  createdAt           DateTime @default(now())
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([channel])
+}
+
+model AuditReport {
+  id             String   @id @default(cuid())
+  auditId        String   @unique
+  reportDataJson String
+  pdfPath        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+}
+
+model AuditJob {
+  id              String    @id @default(cuid())
+  auditId         String
+  status          String    @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED
+  currentStep     String?
+  progressPercent Int       @default(0)
+  errorMessage    String?
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([status])
+}
+
+model HealthcareDictionary {
+  id           String   @id @default(cuid())
+  category     String   // SPECIALTY, DOCTOR_TERM, CTA_TERM, EMERGENCY_TERM, SERVICE_TERM
+  keyword      String
+  weight       Int      @default(1)
+  metadataJson String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([category, keyword])
+  @@index([category])
+}

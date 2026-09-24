@@ -1,0 +1,33 @@
+{
+  "name": "iamonin-healthcare-growth-analyzer",
+  "version": "1.0.0",
+  "description": "IAMONIN Healthcare Growth Analyzer - Internal Prospecting and Audit Platform",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "main": "backend/dist/server.js",
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev": "npm run dev:backend",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:backend && npm run build:frontend",
+    "start": "node backend/dist/server.js",
+    "test:backend": "npm --prefix backend test",
+    "db:migrate": "npm --prefix backend run db:migrate",
+    "db:seed": "npm --prefix backend run db:seed"
+  },
+  "keywords": [
+    "healthcare",
+    "seo",
+    "audit",
+    "growth",
+    "crawler",
+    "iamonin"
+  ],
+  "author": "IAMONIN Growth Engineering",
+  "license": "PROPRIETARY"
+}
