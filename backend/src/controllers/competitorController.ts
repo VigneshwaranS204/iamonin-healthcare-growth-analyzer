@@ -34,10 +34,20 @@ export async function addAndAnalyzeCompetitor(req: Request, res: Response): Prom
 
   try {
     const comparison = await compAnalyzer.analyzeCompetitor(name, normalized, {
-      specialtiesCount: audit.healthcareFindings.length,
-      doctorsCount: audit.doctors.length,
-      hasWhatsApp: audit.healthcareFindings.some((h) => h.title.includes('WhatsApp') && h.status === 'DETECTED'),
-      hasAppointmentBooking: audit.healthcareFindings.some((h) => h.title.includes('Appointment') && h.status === 'DETECTED'),
+      specialtiesCount: audit.healthcareFindings?.length || 0,
+      doctorsCount: audit.doctors?.length || 0,
+      hasWhatsApp: Boolean(
+        audit.healthcareFindings?.some(
+          (h: { title?: string | null; status?: string | null }) =>
+            (h.title || '').includes('WhatsApp') && h.status === 'DETECTED'
+        )
+      ),
+      hasAppointmentBooking: Boolean(
+        audit.healthcareFindings?.some(
+          (h: { title?: string | null; status?: string | null }) =>
+            (h.title || '').includes('Appointment') && h.status === 'DETECTED'
+        )
+      ),
     });
 
     const competitor = await prisma.competitor.create({
